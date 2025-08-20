@@ -21,73 +21,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 地図を初期化する関数
     function initMap() {
-        // すでに地図が存在する場合は処理を中断
-        if (map) return; 
-
-        // 地図を 'map' divに初期化し、ビューを設定
-        map = L.map('map').setView([35.6895, 139.6917], 5); // 初期表示は東京、ズームレベル5
-
-        // OpenStreetMapのタイルレイヤーを追加
+        if (map) return;
+        map = L.map('map').setView([35.6895, 139.6917], 5);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
     }
 
-    // IP情報を取得して表示するメインの関数
+    // IP情報を取得して表示するメインの関数 (★APIを ipinfo.io に変更)
     async function getIpInfo(ipAddress = '') {
-        // ローダーを表示し、前回の結果を隠す
         loader.style.display = 'block';
         resultsContainer.style.display = 'none';
         
+        // ipinfo.io のAPI URLを構築
+        const apiUrl = `https://ipinfo.io/${ipAddress}`;
+
         try {
-            // ip-api.comから情報を取得
-            const response = await fetch(`https://ip-api.com/json/${ipAddress}?fields=status,message,country,regionName,city,lat,lon,isp,query`);
+            const response = await fetch(apiUrl);
+            // ipinfo.ioはエラーでも200を返すことがあるので、レスポンスのステータスを確認
+            if (!response.ok) {
+                // IPアドレスの形式が不正などの場合
+                throw new Error('情報の取得に失敗しました。IPアドレスまたはドメイン名を確認してください。');
+            }
             const data = await response.json();
 
-            // APIからのレスポンスが成功した場合
-            if (data.status === 'success') {
-                displayInfo(data);
-            } else {
-                alert(`情報の取得に失敗しました: ${data.message}`);
-            }
+            displayInfo(data);
+
         } catch (error) {
             console.error('エラーが発生しました:', error);
-            alert('ネットワークエラーまたはAPIリクエストに問題が発生しました。');
+            alert(error.message || 'ネットワークエラーまたはAPIリクエストに問題が発生しました。');
         } finally {
-            // ローダーを非表示にする
             loader.style.display = 'none';
         }
     }
 
-    // 取得した情報をHTMLに表示し、地図を更新する関数
+    // 取得した情報をHTMLに表示し、地図を更新する関数 (★ipinfo.io のデータ形式に対応)
     function displayInfo(data) {
-        // 情報を各span要素に設定
-        resIp.textContent = data.query;
-        resCountry.textContent = data.country;
-        resRegion.textContent = data.regionName;
-        resCity.textContent = data.city;
-        resLat.textContent = data.lat;
-        resLon.textContent = data.lon;
-        resIsp.textContent = data.isp;
+        // 緯度・経度は "loc" キーに "lat,lon" の形式で入っているため分割する
+        const [lat, lon] = data.loc ? data.loc.split(',') : [null, null];
 
-        // 結果コンテナを表示
+        // 情報を各span要素に設定
+        resIp.textContent = data.ip || 'N/A';
+        resCountry.textContent = data.country || 'N/A';
+        resRegion.textContent = data.region || 'N/A';
+        resCity.textContent = data.city || 'N/A';
+        resLat.textContent = lat || 'N/A';
+        resLon.textContent = lon || 'N/A';
+        resIsp.textContent = data.org || 'N/A';
+
         resultsContainer.style.display = 'block';
         
-        // 地図の中心を更新し、ズームイン
-        const lat = data.lat;
-        const lon = data.lon;
-        const zoomLevel = 13; // 都市レベルのズーム
+        // 緯度経度が取得できた場合のみ地図を更新
+        if (lat && lon) {
+            const zoomLevel = 13;
+            map.setView([lat, lon], zoomLevel);
 
-        map.setView([lat, lon], zoomLevel);
+            if (marker) {
+                map.removeLayer(marker);
+            }
 
-        // 既存のマーカーがあれば削除
-        if (marker) {
-            map.removeLayer(marker);
+            marker = L.marker([lat, lon]).addTo(map);
+            marker.bindPopup(`<b>${data.city || data.ip}</b>`).openPopup();
+        } else {
+             // 緯度経度が取得できない場合、地図をデフォルト表示に戻すなどの処理も可能
+            console.warn("緯度・経度情報が取得できませんでした。");
         }
-
-        // 新しい位置にマーカーを設置
-        marker = L.marker([lat, lon]).addTo(map);
-        marker.bindPopup(`<b>${data.city || data.query}</b>`).openPopup();
     }
 
     // イベントリスナーの設定
@@ -100,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Enterキーでも検索できるようにする
     ipInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             searchBtn.click();
@@ -108,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     myIpBtn.addEventListener('click', () => {
-        ipInput.value = ''; // 入力欄をクリア
+        ipInput.value = '';
         getIpInfo(); // 引数なしで呼び出すと自分のIPを検索
     });
 
