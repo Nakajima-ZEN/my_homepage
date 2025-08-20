@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             // ip-api.comから情報を取得
-            const response = await fetch(`http://ip-api.com/json/${ipAddress}?fields=status,message,country,regionName,city,lat,lon,isp,query`);
+            const response = await fetch(`https://ip-api.com/json/${ipAddress}?fields=status,message,country,regionName,city,lat,lon,isp,query`);
             const data = await response.json();
 
             // APIからのレスポンスが成功した場合
